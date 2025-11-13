@@ -1,6 +1,9 @@
 import 'dart:async';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform, File, Directory;
+import 'package:path_provider/path_provider.dart';
 import '../models/activity.dart';
 import '../models/recurring_schedule.dart';
 
@@ -18,11 +21,63 @@ class ActivityDb {
   }
 
   Future<Database> _initDb() async {
-    final databasesPath = await getDatabasesPath();
+    final databasesPath = await _resolveDatabaseDir();
     final path = join(databasesPath, 'log_work.db');
+    // If an older database exists in the sqflite default location, copy it to the
+    // new application support directory so existing user data is preserved.
+    try {
+      final oldDbDir = await getDatabasesPath();
+      final oldDbPath = join(oldDbDir, 'log_work.db');
+      if (oldDbPath != path) {
+        final oldFile = File(oldDbPath);
+        final newFile = File(path);
+        if (await oldFile.exists() && !await newFile.exists()) {
+          // Ensure destination directory exists
+          final destDir = Directory(databasesPath);
+          if (!await destDir.exists()) await destDir.create(recursive: true);
+          await oldFile.copy(path);
+        }
+      }
+    } catch (_) {
+      // ignore copy errors and continue — we'll create a fresh DB if needed
+    }
     final db = await openDatabase(path, version: 1, onCreate: _onCreate);
     await _ensureMigrations(db);
+    // Debug: write DB path and schedule count to C:\Temp for troubleshooting
+    try {
+      final countRes = await db.rawQuery('SELECT COUNT(*) as c FROM recurring_schedules');
+      final cnt = (countRes.isNotEmpty ? countRes.first['c'] : 0) ?? 0;
+      final info = 'dbPath=$path\nexists=${await File(path).exists()}\nschedules=$cnt\n';
+      try {
+        final tmp = File(r'C:\Temp\log_work_db_info.txt');
+        await tmp.create(recursive: true);
+        await tmp.writeAsString(info);
+      } catch (_) {}
+    } catch (_) {
+      try {
+        final info = 'dbPath=$path\nexists=${await File(path).exists()}\nschedules=ERR\n';
+        final tmp = File(r'C:\Temp\log_work_db_info.txt');
+        await tmp.create(recursive: true);
+        await tmp.writeAsString(info);
+      } catch (_) {}
+    }
     return db;
+  }
+
+  Future<String> _resolveDatabaseDir() async {
+    // On mobile platforms, use sqflite's default location.
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      return await getDatabasesPath();
+    }
+    // On desktop/web, store under an app-specific directory to ensure write access.
+    // For web, sqflite is not used, but return a temp-like string anyway.
+    try {
+      final dir = await getApplicationSupportDirectory();
+      return dir.path;
+    } catch (_) {
+      // Fallback to sqflite default if available
+      return await getDatabasesPath();
+    }
   }
 
   FutureOr<void> _onCreate(Database db, int version) async {
@@ -34,6 +89,7 @@ class ActivityDb {
         startTime TEXT,
         endTime TEXT,
         accumulated INTEGER,
+        manualDuration INTEGER,
         isActive INTEGER,
         type INTEGER,
         url TEXT,
@@ -65,6 +121,7 @@ class ActivityDb {
         autoStart INTEGER,
         durationMinutes INTEGER,
         activityType INTEGER,
+        url TEXT,
         lastTriggeredDate TEXT
       )
     ''');
@@ -86,12 +143,25 @@ class ActivityDb {
         autoStart INTEGER,
         durationMinutes INTEGER,
         activityType INTEGER,
+        url TEXT,
         lastTriggeredDate TEXT
       )
     ''');
     // Add firstStartTime to activities if missing
     try {
       await db.execute('ALTER TABLE activities ADD COLUMN firstStartTime TEXT');
+    } catch (_) {
+      // ignore if already exists
+    }
+    // Add manualDuration column if missing
+    try {
+      await db.execute('ALTER TABLE activities ADD COLUMN manualDuration INTEGER');
+    } catch (_) {
+      // ignore if already exists
+    }
+    // Add url to recurring_schedules if missing
+    try {
+      await db.execute('ALTER TABLE recurring_schedules ADD COLUMN url TEXT');
     } catch (_) {
       // ignore if already exists
     }

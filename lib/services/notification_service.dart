@@ -117,6 +117,7 @@ class NotificationService {
       endTime: null,
       isActive: true,
       type: type,
+      url: s.url,
     );
     await ActivityDb().insertOrUpdateActivity(newActivity);
     // Notify listeners (UI) that data has changed

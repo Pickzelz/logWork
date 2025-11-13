@@ -7,6 +7,8 @@ class Activity {
   DateTime? endTime;
   // accumulated time from previous sessions (used when starting/pausing multiple times)
   Duration accumulated;
+  // optional manual duration override set by user (not automatic)
+  Duration? manualDuration;
   bool isActive;
   ActivityType type;
   String? url;
@@ -20,7 +22,8 @@ class Activity {
     this.startTime,
     this.endTime,
     this.accumulated = Duration.zero,
-    this.isActive = false,
+  this.manualDuration,
+  this.isActive = false,
     this.type = ActivityType.work,
     this.url,
     this.description,
@@ -28,8 +31,10 @@ class Activity {
   }) : logs = logs ?? <ActivityLog>[];
 
   Duration get duration {
-    // If currently running, add elapsed since start to accumulated
-    if (startTime != null) {
+    // Only count elapsed time if the activity is actually active.
+    // Previously this counted elapsed whenever startTime was present which
+    // made newly-created activities with a startTime appear to be running.
+    if (isActive && startTime != null) {
       return accumulated + DateTime.now().difference(startTime!);
     }
     // If not running, return accumulated (endTime may be present for display)
@@ -44,6 +49,7 @@ class Activity {
       'startTime': startTime?.toIso8601String(),
       'endTime': endTime?.toIso8601String(),
       'accumulated': accumulated.inMilliseconds,
+      'manualDuration': manualDuration?.inMilliseconds,
       'isActive': isActive ? 1 : 0,
       'type': type.index,
       'url': url,
@@ -59,6 +65,7 @@ class Activity {
       startTime: m['startTime'] != null ? DateTime.parse(m['startTime']) : null,
       endTime: m['endTime'] != null ? DateTime.parse(m['endTime']) : null,
       accumulated: Duration(milliseconds: (m['accumulated'] ?? 0)),
+      manualDuration: m['manualDuration'] != null ? Duration(milliseconds: m['manualDuration']) : null,
       isActive: (m['isActive'] ?? 0) == 1,
       type: ActivityType.values[(m['type'] ?? 0)],
       url: m['url'],

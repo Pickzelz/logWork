@@ -24,6 +24,7 @@ class _RecurringSchedulesPageState extends State<RecurringSchedulesPage> {
 
   Future<void> _addOrEdit({RecurringSchedule? item}) async {
     final nameCtrl = TextEditingController(text: item?.name ?? '');
+    final urlCtrl = TextEditingController(text: item?.url ?? '');
     TimeOfDay time = TimeOfDay(hour: item?.hour ?? 9, minute: item?.minute ?? 0);
     RepeatType repeat = item?.repeatType ?? RepeatType.daily;
     final days = {...(item?.daysOfWeek ?? [])};
@@ -51,6 +52,8 @@ class _RecurringSchedulesPageState extends State<RecurringSchedulesPage> {
               children: [
                 // Nama Kegiatan
                 TextField(controller: nameCtrl, decoration: InputDecoration(labelText: 'Nama Kegiatan')),
+                SizedBox(height: 8),
+                TextField(controller: urlCtrl, decoration: InputDecoration(labelText: 'Link (opsional)'), keyboardType: TextInputType.url),
                 SizedBox(height: 12),
                 // Jenis Jadwal
                 Text('Jenis Jadwal'),
@@ -72,7 +75,13 @@ class _RecurringSchedulesPageState extends State<RecurringSchedulesPage> {
                   TextButton(
                     onPressed: () async {
                       final picked = await showTimePicker(context: context, initialTime: time);
-                      if (picked != null) setLocalState(() => time = picked);
+                      if (picked != null) setLocalState(() {
+                        time = picked;
+                        // If notifications are enabled, keep notification time synced to schedule time
+                        if (sendNotification) {
+                          notifyTime = TimeOfDay(hour: picked.hour, minute: picked.minute);
+                        }
+                      });
                     },
                     child: Text(time.format(context)),
                   ),
@@ -167,6 +176,7 @@ class _RecurringSchedulesPageState extends State<RecurringSchedulesPage> {
                   autoStart: autoStart,
                   durationMinutes: item?.durationMinutes, // keep existing if any; not part of this UI now
                   activityType: item?.activityType ?? 0,
+                  url: urlCtrl.text.trim().isEmpty ? null : urlCtrl.text.trim(),
                   // Reset trigger so changes can take effect immediately
                   lastTriggeredDate: null,
                 );

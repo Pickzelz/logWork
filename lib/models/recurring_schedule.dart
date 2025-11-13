@@ -16,6 +16,7 @@ class RecurringSchedule {
   bool autoStart;
   int? durationMinutes; // if provided and autoStart true, auto-stop after duration
   int activityType; // 0 work, 1 break
+  String? url; // optional link to attach to created activities
   String? lastTriggeredDate; // yyyy-MM-dd to prevent duplicate trigger per period
 
   RecurringSchedule({
@@ -31,6 +32,7 @@ class RecurringSchedule {
     this.autoStart = false,
     this.durationMinutes,
     this.activityType = 0,
+    this.url,
     this.lastTriggeredDate,
   });
 
@@ -66,12 +68,13 @@ class RecurringSchedule {
         'notifyHour': notifyHour,
         'notifyMinute': notifyMinute,
         'repeatType': repeatType.index,
-        'daysOfWeek': (daysOfWeek ?? []).join(','),
+    'daysOfWeek': (daysOfWeek ?? []).join(','),
         'dayOfMonth': dayOfMonth,
         'autoStart': autoStart ? 1 : 0,
         'durationMinutes': durationMinutes,
         'activityType': activityType,
-        'lastTriggeredDate': lastTriggeredDate,
+    'url': url,
+    'lastTriggeredDate': lastTriggeredDate,
       };
 
   static RecurringSchedule fromJson(Map<String, dynamic> m) => RecurringSchedule(
@@ -87,6 +90,7 @@ class RecurringSchedule {
         autoStart: (m['autoStart'] ?? 0) == 1,
         durationMinutes: m['durationMinutes'],
         activityType: m['activityType'] ?? 0,
+        url: m['url'],
         lastTriggeredDate: m['lastTriggeredDate'],
       );
 }
